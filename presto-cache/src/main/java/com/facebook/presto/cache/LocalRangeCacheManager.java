@@ -82,6 +82,7 @@ public class LocalRangeCacheManager
     // config
     private final Path baseDirectory;
     private final long maxInflightBytes;
+    private final int inMemoryChunkSize;
 
     public LocalRangeCacheManager(CacheConfig cacheConfig, CacheStats stats, ExecutorService cacheFlushExecutor, ExecutorService cacheRemovalExecutor)
     {
@@ -96,6 +97,7 @@ public class LocalRangeCacheManager
                 .build();
         this.stats = requireNonNull(stats, "stats is null");
         this.baseDirectory = new Path(cacheConfig.getBaseDirectory());
+        this.inMemoryChunkSize = cacheConfig.getInMemoryChunkSize();
         checkArgument(cacheConfig.getMaxInMemoryCacheSize().toBytes() >= 0, "maxInflightBytes is negative");
         this.maxInflightBytes = cacheConfig.getMaxInMemoryCacheSize().toBytes();
 
@@ -261,17 +263,32 @@ public class LocalRangeCacheManager
             else {
                 // copy previous file's data to the new file
                 byte[] previousFileBytes = Files.readAllBytes(new File(previousCacheFile.getPath().toUri()).toPath());
-                Files.write((new File(newFilePath.toUri())).toPath(), previousFileBytes, CREATE_NEW);
+                File newFile = new File(newFilePath.toUri());
+                Files.write(newFile.toPath(), previousFileBytes, CREATE_NEW);
                 int previousFileLength = previousFileBytes.length;
                 long previousFileOffset = previousCacheFile.getOffset();
 
                 // remove the overlapping part and append the remaining cache data
-                byte[] remainingCacheFileBytes = new byte[toIntExact((key.getLength() + key.getOffset()) - (previousFileLength + previousFileOffset))];
-                System.arraycopy(data, toIntExact(previousFileLength + previousFileOffset - key.getOffset()), remainingCacheFileBytes, 0, remainingCacheFileBytes.length);
-                Files.write((new File(newFilePath.toUri())).toPath(), remainingCacheFileBytes, APPEND);
+                //TODO: discuss adding metrics (eg: failure rates, increased put times?), rollout considerations?
+                int pos = toIntExact(previousFileLength + previousFileOffset - key.getOffset());
+                int numBytesToCopy = toIntExact((key.getLength() + key.getOffset()) - (previousFileLength + previousFileOffset));
+                byte[] chunkArray = new byte[inMemoryChunkSize];
+
+                while (numBytesToCopy >= inMemoryChunkSize) {
+                    System.arraycopy(data, pos, chunkArray, 0, inMemoryChunkSize);
+                    Files.write(newFile.toPath(), chunkArray, APPEND);
+                    pos += inMemoryChunkSize;
+                    numBytesToCopy -= inMemoryChunkSize;
+                }
+
+                if (numBytesToCopy > 0) {
+                    chunkArray = new byte[numBytesToCopy];
+                    System.arraycopy(data, pos, chunkArray, 0, numBytesToCopy);
+                    Files.write(newFile.toPath(), chunkArray, APPEND);
+                }
 
                 // update new range info
-                newFileLength = previousFileLength + remainingCacheFileBytes.length;
+                newFileLength = previousFileLength + numBytesToCopy;
                 newFileOffset = previousFileOffset;
             }
 
