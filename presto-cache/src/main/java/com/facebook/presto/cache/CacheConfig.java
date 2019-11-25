@@ -24,7 +24,6 @@ import javax.validation.constraints.Min;
 import java.net.URI;
 
 import static io.airlift.units.DataSize.Unit.GIGABYTE;
-import static io.airlift.units.DataSize.Unit.MEGABYTE;
 import static java.util.concurrent.TimeUnit.DAYS;
 
 public class CacheConfig
@@ -34,10 +33,6 @@ public class CacheConfig
     private DataSize maxInMemoryCacheSize = new DataSize(2, GIGABYTE);
     private int maxCachedEntries = 1_000;
     private Duration cacheTtl = new Duration(2, DAYS);
-
-    //TODO: discuss - determining good default chunk size based on underlying hardware etc;
-    // is this the best way to make it configurable?
-    private int inMemoryChunkSize = (int) new DataSize(10, MEGABYTE).toBytes();
 
     public URI getBaseDirectory()
     {
@@ -103,19 +98,6 @@ public class CacheConfig
     public CacheConfig setCacheTtl(Duration cacheTtl)
     {
         this.cacheTtl = cacheTtl;
-        return this;
-    }
-
-    public int getInMemoryChunkSize()
-    {
-        return inMemoryChunkSize;
-    }
-
-    @Config("cache.chunk-size")
-    @ConfigDescription("The size of individual chunks when copying a large file in memory")
-    public CacheConfig setInMemoryChunkSize(int inMemoryChunkSize)
-    {
-        this.inMemoryChunkSize = inMemoryChunkSize;
         return this;
     }
 }

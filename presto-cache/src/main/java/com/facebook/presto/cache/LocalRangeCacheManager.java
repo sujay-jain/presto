@@ -24,6 +24,7 @@ import com.google.common.collect.Range;
 import com.google.common.collect.RangeMap;
 import com.google.common.collect.TreeRangeMap;
 import io.airlift.slice.Slice;
+import io.airlift.units.DataSize;
 import org.apache.hadoop.fs.Path;
 
 import javax.annotation.PreDestroy;
@@ -50,6 +51,7 @@ import java.util.stream.Collectors;
 import static com.facebook.presto.spi.StandardErrorCode.GENERIC_INTERNAL_ERROR;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Iterators.getOnlyElement;
+import static io.airlift.units.DataSize.Unit.MEGABYTE;
 import static java.lang.StrictMath.toIntExact;
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE_NEW;
@@ -69,6 +71,8 @@ public class LocalRangeCacheManager
 
     private static final String EXTENSION = ".cache";
 
+    private static final int inMemoryChunkSize = (int) new DataSize(8, MEGABYTE).toBytes();
+
     private final ExecutorService cacheFlushExecutor;
     private final ExecutorService cacheRemovalExecutor;
 
@@ -83,7 +87,6 @@ public class LocalRangeCacheManager
     // config
     private final Path baseDirectory;
     private final long maxInflightBytes;
-    private final int inMemoryChunkSize;
 
     public LocalRangeCacheManager(CacheConfig cacheConfig, CacheStats stats, ExecutorService cacheFlushExecutor, ExecutorService cacheRemovalExecutor)
     {
@@ -98,7 +101,6 @@ public class LocalRangeCacheManager
                 .build();
         this.stats = requireNonNull(stats, "stats is null");
         this.baseDirectory = new Path(cacheConfig.getBaseDirectory());
-        this.inMemoryChunkSize = cacheConfig.getInMemoryChunkSize();
         checkArgument(cacheConfig.getMaxInMemoryCacheSize().toBytes() >= 0, "maxInflightBytes is negative");
         this.maxInflightBytes = cacheConfig.getMaxInMemoryCacheSize().toBytes();
 
@@ -160,6 +162,7 @@ public class LocalRangeCacheManager
         // make a copy given the input data could be a reusable buffer
         stats.addInMemoryRetainedBytes(data.length());
         byte[] copy = data.getBytes();
+
         cacheFlushExecutor.submit(() -> {
             Path newFilePath = new Path(baseDirectory.toUri() + "/" + randomUUID() + EXTENSION);
             if (!write(key, copy, newFilePath)) {
@@ -263,7 +266,7 @@ public class LocalRangeCacheManager
                 newFileOffset = key.getOffset();
             }
             else {
-                //TODO: discuss adding metrics (eg: failure rates, increased put times?), rollout considerations?
+                // copy previous file's data to the new file
                 int previousFileLength = copyFromFileInChunks(newFile, previousCacheFile, 0);
                 long previousFileOffset = previousCacheFile.getOffset();
 
@@ -271,9 +274,9 @@ public class LocalRangeCacheManager
                 int startPos = toIntExact(previousFileLength + previousFileOffset - key.getOffset());
                 int numBytesToCopy = toIntExact((key.getLength() + key.getOffset()) - (previousFileLength + previousFileOffset));
 
-                try (RandomAccessFile raf = new RandomAccessFile(newFile, "rw")) {
-                    raf.seek(raf.length());
-                    raf.write(data, startPos, numBytesToCopy);
+                try (RandomAccessFile randomAccessFile = new RandomAccessFile(newFile, "rw")) {
+                    randomAccessFile.seek(randomAccessFile.length());
+                    randomAccessFile.write(data, startPos, numBytesToCopy);
                 }
 
                 // update new range info
@@ -348,12 +351,12 @@ public class LocalRangeCacheManager
             throws IOException
     {
         int totalBytesRead = 0;
-        try (FileInputStream fs = new FileInputStream(new File(sourceFile.getPath().toUri()))) {
-            fs.getChannel().position(startPos);
+        try (FileInputStream fileInputStream = new FileInputStream(new File(sourceFile.getPath().toUri()))) {
+            fileInputStream.getChannel().position(startPos);
             int readBytes = 0;
             byte[] buffer = new byte[inMemoryChunkSize];
 
-            while ((readBytes = fs.read(buffer)) != -1) {
+            while ((readBytes = fileInputStream.read(buffer)) != -1) {
                 totalBytesRead += readBytes;
 
                 if (readBytes != inMemoryChunkSize) {
