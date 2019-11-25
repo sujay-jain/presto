@@ -358,7 +358,6 @@ public class LocalRangeCacheManager
             fileInputStream.getChannel().position(startPos);
             int readBytes = 0;
             byte[] buffer = threadLocal.get();
-            Arrays.fill(buffer, (byte) 0);
 
             while ((readBytes = fileInputStream.read(buffer)) != -1) {
                 if (readBytes > 0 && !Files.exists(newFile.toPath())) {
