@@ -137,6 +137,7 @@ public class LocalRangeCacheManager
     {
         cacheFlushExecutor.shutdownNow();
         cacheRemovalExecutor.shutdownNow();
+        threadLocal.remove();
     }
 
     @Override
