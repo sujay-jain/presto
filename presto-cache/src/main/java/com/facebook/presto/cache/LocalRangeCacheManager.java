@@ -29,6 +29,7 @@ import org.apache.hadoop.fs.Path;
 import javax.annotation.PreDestroy;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
@@ -251,40 +252,28 @@ public class LocalRangeCacheManager
 
         long newFileOffset;
         int newFileLength;
+        File newFile = new File(newFilePath.toUri());
         try {
             if (previousCacheFile == null) {
                 // a new file
-                Files.write((new File(newFilePath.toUri())).toPath(), data, CREATE_NEW);
+                Files.write(newFile.toPath(), data, CREATE_NEW);
 
                 // update new range info
                 newFileLength = data.length;
                 newFileOffset = key.getOffset();
             }
             else {
-                // copy previous file's data to the new file
-                byte[] previousFileBytes = Files.readAllBytes(new File(previousCacheFile.getPath().toUri()).toPath());
-                File newFile = new File(newFilePath.toUri());
-                Files.write(newFile.toPath(), previousFileBytes, CREATE_NEW);
-                int previousFileLength = previousFileBytes.length;
+                //TODO: discuss adding metrics (eg: failure rates, increased put times?), rollout considerations?
+                int previousFileLength = copyFromFileInChunks(newFile, previousCacheFile, 0);
                 long previousFileOffset = previousCacheFile.getOffset();
 
                 // remove the overlapping part and append the remaining cache data
-                //TODO: discuss adding metrics (eg: failure rates, increased put times?), rollout considerations?
-                int pos = toIntExact(previousFileLength + previousFileOffset - key.getOffset());
+                int startPos = toIntExact(previousFileLength + previousFileOffset - key.getOffset());
                 int numBytesToCopy = toIntExact((key.getLength() + key.getOffset()) - (previousFileLength + previousFileOffset));
-                byte[] chunkArray = new byte[inMemoryChunkSize];
 
-                while (numBytesToCopy >= inMemoryChunkSize) {
-                    System.arraycopy(data, pos, chunkArray, 0, inMemoryChunkSize);
-                    Files.write(newFile.toPath(), chunkArray, APPEND);
-                    pos += inMemoryChunkSize;
-                    numBytesToCopy -= inMemoryChunkSize;
-                }
-
-                if (numBytesToCopy > 0) {
-                    chunkArray = new byte[numBytesToCopy];
-                    System.arraycopy(data, pos, chunkArray, 0, numBytesToCopy);
-                    Files.write(newFile.toPath(), chunkArray, APPEND);
+                try (RandomAccessFile raf = new RandomAccessFile(newFile, "rw")) {
+                    raf.seek(raf.length());
+                    raf.write(data, startPos, numBytesToCopy);
                 }
 
                 // update new range info
@@ -294,15 +283,8 @@ public class LocalRangeCacheManager
 
             if (followingCacheFile != null) {
                 // remove the overlapping part and append the remaining following file data
-                try (RandomAccessFile followingFile = new RandomAccessFile(new File(followingCacheFile.getPath().toUri()), "r")) {
-                    byte[] remainingFollowingFileBytes = new byte[toIntExact((followingFile.length() + followingCacheFile.getOffset()) - (key.getLength() + key.getOffset()))];
-                    followingFile.seek(key.getOffset() + key.getLength() - followingCacheFile.getOffset());
-                    followingFile.readFully(remainingFollowingFileBytes, 0, remainingFollowingFileBytes.length);
-                    Files.write((new File(newFilePath.toUri())).toPath(), remainingFollowingFileBytes, APPEND);
-
-                    // update new range info
-                    newFileLength += remainingFollowingFileBytes.length;
-                }
+                int followingFileBytesRead = copyFromFileInChunks(newFile, followingCacheFile, key.getOffset() + key.getLength() - followingCacheFile.getOffset());
+                newFileLength += followingFileBytesRead;
             }
         }
         catch (IOException e) {
@@ -360,6 +342,35 @@ public class LocalRangeCacheManager
 
         cacheFilesToDelete.forEach(LocalRangeCacheManager::tryDeleteFile);
         return true;
+    }
+
+    private int copyFromFileInChunks(File newFile, LocalCacheFile sourceFile, long startPos)
+            throws IOException
+    {
+        int totalBytesRead = 0;
+        try (FileInputStream fs = new FileInputStream(new File(sourceFile.getPath().toUri()))) {
+            fs.getChannel().position(startPos);
+            int readBytes = 0;
+            byte[] buffer = new byte[inMemoryChunkSize];
+
+            while ((readBytes = fs.read(buffer)) != -1) {
+                totalBytesRead += readBytes;
+
+                if (readBytes != inMemoryChunkSize) {
+                    byte[] tempBuffer = new byte[readBytes];
+                    System.arraycopy(buffer, 0, tempBuffer, 0, readBytes);
+                    buffer = tempBuffer;
+                }
+
+                if (!Files.exists(newFile.toPath())) {
+                    Files.write(newFile.toPath(), buffer, CREATE_NEW);
+                }
+                else {
+                    Files.write(newFile.toPath(), buffer, APPEND);
+                }
+            }
+        }
+        return totalBytesRead;
     }
 
     private static void tryDeleteFile(Path path)
