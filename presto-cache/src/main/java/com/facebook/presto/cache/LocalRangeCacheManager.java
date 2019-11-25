@@ -73,6 +73,8 @@ public class LocalRangeCacheManager
 
     private static final int inMemoryChunkSize = (int) new DataSize(8, MEGABYTE).toBytes();
 
+    private final ThreadLocal<byte[]> threadLocal = ThreadLocal.withInitial(() -> new byte[inMemoryChunkSize]);
+
     private final ExecutorService cacheFlushExecutor;
     private final ExecutorService cacheRemovalExecutor;
 
@@ -354,19 +356,20 @@ public class LocalRangeCacheManager
         try (FileInputStream fileInputStream = new FileInputStream(new File(sourceFile.getPath().toUri()))) {
             fileInputStream.getChannel().position(startPos);
             int readBytes = 0;
-            byte[] buffer = new byte[inMemoryChunkSize];
+            byte[] buffer = threadLocal.get();
+            Arrays.fill(buffer, (byte) 0);
 
             while ((readBytes = fileInputStream.read(buffer)) != -1) {
+                if (readBytes > 0 && !Files.exists(newFile.toPath())) {
+                    Files.createFile(newFile.toPath());
+                }
                 totalBytesRead += readBytes;
 
                 if (readBytes != inMemoryChunkSize) {
-                    byte[] tempBuffer = new byte[readBytes];
-                    System.arraycopy(buffer, 0, tempBuffer, 0, readBytes);
-                    buffer = tempBuffer;
-                }
-
-                if (!Files.exists(newFile.toPath())) {
-                    Files.write(newFile.toPath(), buffer, CREATE_NEW);
+                    try (RandomAccessFile randomAccessFile = new RandomAccessFile(newFile, "rw")) {
+                        randomAccessFile.seek(newFile.length());
+                        randomAccessFile.write(buffer, 0, readBytes);
+                    }
                 }
                 else {
                     Files.write(newFile.toPath(), buffer, APPEND);
