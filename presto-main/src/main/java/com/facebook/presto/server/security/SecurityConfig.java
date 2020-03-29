@@ -32,6 +32,10 @@ public class SecurityConfig
     private static final Splitter SPLITTER = Splitter.on(',').trimResults().omitEmptyStrings();
 
     private List<AuthenticationType> authenticationTypes = ImmutableList.of();
+    private List<AuthorizationType> authorizationTypes = ImmutableList.of();
+
+    //todo default false
+    private boolean authorizationEnabled = true;
 
     public enum AuthenticationType
     {
@@ -39,6 +43,11 @@ public class SecurityConfig
         KERBEROS,
         PASSWORD,
         JWT
+    }
+
+    public enum AuthorizationType
+    {
+        CERTIFICATE_IDENTITY
     }
 
     @NotNull
@@ -64,6 +73,45 @@ public class SecurityConfig
 
         authenticationTypes = stream(SPLITTER.split(types))
                 .map(AuthenticationType::valueOf)
+                .collect(toImmutableList());
+        return this;
+    }
+
+    public boolean isAuthorizationEnabled()
+    {
+        return authorizationEnabled;
+    }
+
+    @Config("http-server.authorization.enabled")
+    public SecurityConfig setAuthorizationEnabled(boolean authorizationEnabled)
+    {
+        this.authorizationEnabled = authorizationEnabled;
+        return this;
+    }
+
+    @NotNull
+    public List<AuthorizationType> getAuthorizationTypes()
+    {
+        return authorizationTypes;
+    }
+
+    public SecurityConfig setAuthorizationTypes(List<AuthorizationType> authorizationTypes)
+    {
+        this.authorizationTypes = ImmutableList.copyOf(authorizationTypes);
+        return this;
+    }
+
+    @Config("http-server.authorization.type")
+    @ConfigDescription("Authorization types (supported types: CERTIFICATE_IDENTITY)")
+    public SecurityConfig setAuthorizationTypes(String types)
+    {
+        if (types == null) {
+            authorizationTypes = null;
+            return this;
+        }
+
+        authorizationTypes = stream(SPLITTER.split(types))
+                .map(AuthorizationType::valueOf)
                 .collect(toImmutableList());
         return this;
     }

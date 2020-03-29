@@ -22,14 +22,16 @@ import java.util.Map;
 
 import static com.facebook.presto.server.security.SecurityConfig.AuthenticationType.KERBEROS;
 import static com.facebook.presto.server.security.SecurityConfig.AuthenticationType.PASSWORD;
-
+import static com.facebook.presto.server.security.SecurityConfig.AuthorizationType.CERTIFICATE_IDENTITY;
 public class TestSecurityConfig
 {
     @Test
     public void testDefaults()
     {
         ConfigAssertions.assertRecordedDefaults(ConfigAssertions.recordDefaults(SecurityConfig.class)
-                .setAuthenticationTypes(""));
+                .setAuthenticationTypes("")
+                .setAuthorizationEnabled(true)
+                .setAuthorizationTypes(""));
     }
 
     @Test
@@ -37,10 +39,14 @@ public class TestSecurityConfig
     {
         Map<String, String> properties = new ImmutableMap.Builder<String, String>()
                 .put("http-server.authentication.type", "KERBEROS,PASSWORD")
+                .put("http-server.authorization.type", "CERTIFICATE_IDENTITY")
+                .put("http-server.authorization.enabled", "false")
                 .build();
 
         SecurityConfig expected = new SecurityConfig()
-                .setAuthenticationTypes(ImmutableList.of(KERBEROS, PASSWORD));
+                .setAuthenticationTypes(ImmutableList.of(KERBEROS, PASSWORD))
+                .setAuthorizationTypes(ImmutableList.of(CERTIFICATE_IDENTITY))
+                .setAuthorizationEnabled(false);
 
         ConfigAssertions.assertFullMapping(properties, expected);
     }
