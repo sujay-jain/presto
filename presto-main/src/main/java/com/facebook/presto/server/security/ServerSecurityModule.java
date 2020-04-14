@@ -16,6 +16,7 @@ package com.facebook.presto.server.security;
 import com.facebook.airlift.configuration.AbstractConfigurationAwareModule;
 import com.facebook.airlift.http.server.TheServlet;
 import com.facebook.presto.server.security.SecurityConfig.AuthenticationType;
+import com.facebook.presto.server.security.SecurityConfig.AuthorizationType;
 import com.google.common.collect.ImmutableList;
 import com.google.inject.Binder;
 import com.google.inject.Provides;
@@ -32,6 +33,7 @@ import static com.facebook.presto.server.security.SecurityConfig.AuthenticationT
 import static com.facebook.presto.server.security.SecurityConfig.AuthenticationType.JWT;
 import static com.facebook.presto.server.security.SecurityConfig.AuthenticationType.KERBEROS;
 import static com.facebook.presto.server.security.SecurityConfig.AuthenticationType.PASSWORD;
+import static com.facebook.presto.server.security.SecurityConfig.AuthorizationType.CERTIFICATE_IDENTITY;
 import static com.google.inject.multibindings.Multibinder.newSetBinder;
 
 public class ServerSecurityModule
@@ -67,11 +69,34 @@ public class ServerSecurityModule
                 throw new AssertionError("Unhandled auth type: " + authType);
             }
         }
+
+        configBinder(binder).bindConfig(CertificateAuthorizationConfig.class);
+
+        newSetBinder(binder, Filter.class, TheServlet.class).addBinding()
+                .to(AuthorizationFilter.class).in(Scopes.SINGLETON);
+
+        Multibinder<Authorizer> authorizationBinder = newSetBinder(binder, Authorizer.class);
+        List<AuthorizationType> authorizationTypes = buildConfigObject(SecurityConfig.class).getAuthorizationTypes();
+
+        for (AuthorizationType authorizationType : authorizationTypes) {
+            if (authorizationType == CERTIFICATE_IDENTITY) {
+                authorizationBinder.addBinding().to(CertificateIdentityAuthorizer.class).in(Scopes.SINGLETON);
+            }
+            else {
+                throw new AssertionError("Unhandled authorization type: " + authorizationType);
+            }
+        }
     }
 
     @Provides
     List<Authenticator> getAuthenticatorList(Set<Authenticator> authenticators)
     {
         return ImmutableList.copyOf(authenticators);
+    }
+
+    @Provides
+    List<Authorizer> getAuthorizerList(Set<Authorizer> authorizers)
+    {
+        return ImmutableList.copyOf(authorizers);
     }
 }
