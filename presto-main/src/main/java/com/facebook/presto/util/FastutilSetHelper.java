@@ -205,7 +205,7 @@ public final class FastutilSetHelper
             try {
                 Boolean result = (Boolean) equalsHandle.invokeExact(a, b);
                 // FastutilHashSet is not intended be used for indeterminate values lookup
-                verify(result != null, "result is null");
+                // verify(result != null, "result is null");
                 return TRUE.equals(result);
             }
             catch (Throwable t) {

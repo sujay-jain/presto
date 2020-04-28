@@ -80,7 +80,7 @@ public class InCodeGenerator
     @VisibleForTesting
     static SwitchGenerationCase checkSwitchGenerationCase(Type type, List<RowExpression> values)
     {
-        if (values.size() > 32) {
+        if (values.size() > 0) {
             // 32 is chosen because
             // * SET_CONTAINS performs worst when smaller than but close to power of 2
             // * Benchmark shows performance of SET_CONTAINS is better at 50, but similar at 25.
