@@ -120,6 +120,7 @@ import static org.apache.hadoop.hive.metastore.api.ColumnStatisticsData.doubleSt
 import static org.apache.hadoop.hive.metastore.api.ColumnStatisticsData.longStats;
 import static org.apache.hadoop.hive.metastore.api.ColumnStatisticsData.stringStats;
 import static org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category.PRIMITIVE;
+import static org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category.STRUCT;
 
 public final class ThriftMetastoreUtil
 {
@@ -691,32 +692,40 @@ public final class ThriftMetastoreUtil
     public static ColumnStatisticsObj createMetastoreColumnStatistics(String columnName, HiveType columnType, HiveColumnStatistics statistics, OptionalLong rowCount)
     {
         TypeInfo typeInfo = columnType.getTypeInfo();
-        checkArgument(typeInfo.getCategory() == PRIMITIVE, "unsupported type: %s", columnType);
-        switch (((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory()) {
-            case BOOLEAN:
-                return createBooleanStatistics(columnName, columnType, statistics);
-            case BYTE:
-            case SHORT:
-            case INT:
-            case LONG:
-                return createLongStatistics(columnName, columnType, statistics);
-            case FLOAT:
-            case DOUBLE:
-                return createDoubleStatistics(columnName, columnType, statistics);
-            case STRING:
-            case VARCHAR:
-            case CHAR:
-                return createStringStatistics(columnName, columnType, statistics, rowCount);
-            case DATE:
-                return createDateStatistics(columnName, columnType, statistics);
-            case TIMESTAMP:
-                return createLongStatistics(columnName, columnType, statistics);
-            case BINARY:
-                return createBinaryStatistics(columnName, columnType, statistics, rowCount);
-            case DECIMAL:
-                return createDecimalStatistics(columnName, columnType, statistics);
-            default:
-                throw new IllegalArgumentException(format("unsupported type: %s", columnType));
+        //checkArgument(typeInfo.getCategory() == PRIMITIVE, "unsupported type: %s", columnType);
+        if(typeInfo.getCategory() == PRIMITIVE) {
+            switch (((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory()) {
+                case BOOLEAN:
+                    return createBooleanStatistics(columnName, columnType, statistics);
+                case BYTE:
+                case SHORT:
+                case INT:
+                case LONG:
+                    return createLongStatistics(columnName, columnType, statistics);
+                case FLOAT:
+                case DOUBLE:
+                    return createDoubleStatistics(columnName, columnType, statistics);
+                case STRING:
+                case VARCHAR:
+                case CHAR:
+                    return createStringStatistics(columnName, columnType, statistics, rowCount);
+                case DATE:
+                    return createDateStatistics(columnName, columnType, statistics);
+                case TIMESTAMP:
+                    return createLongStatistics(columnName, columnType, statistics);
+                case BINARY:
+                    return createBinaryStatistics(columnName, columnType, statistics, rowCount);
+                case DECIMAL:
+                    return createDecimalStatistics(columnName, columnType, statistics);
+                default:
+                    throw new IllegalArgumentException(format("unsupported type: %s", columnType));
+            }
+        }
+        else if(typeInfo.getCategory() == STRUCT) {
+            return new ColumnStatisticsObj();
+        }
+        else {
+            throw new IllegalArgumentException(format("unsupported type: %s", columnType));
         }
     }
 
