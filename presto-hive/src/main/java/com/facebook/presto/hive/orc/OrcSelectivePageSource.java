@@ -25,6 +25,7 @@ import com.facebook.presto.spi.PrestoException;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.concurrent.CompletableFuture;
 
 import static com.facebook.presto.hive.HiveErrorCode.HIVE_BAD_DATA;
 import static com.facebook.presto.hive.HiveErrorCode.HIVE_CURSOR_ERROR;
@@ -149,5 +150,11 @@ public class OrcSelectivePageSource
                 throwable.addSuppressed(e);
             }
         }
+    }
+
+    @Override
+    public CompletableFuture<?> isBlocked()
+    {
+        return orcDataSource.isBlocked();
     }
 }

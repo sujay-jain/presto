@@ -17,6 +17,7 @@ import com.facebook.presto.hive.FileFormatDataSourceStats;
 import com.facebook.presto.orc.AbstractOrcDataSource;
 import com.facebook.presto.orc.OrcDataSourceId;
 import com.facebook.presto.spi.PrestoException;
+import com.google.common.util.concurrent.ListenableFuture;
 import io.airlift.units.DataSize;
 import org.apache.hadoop.fs.FSDataInputStream;
 
@@ -33,9 +34,11 @@ public class HdfsOrcDataSource
 {
     private final FSDataInputStream inputStream;
     private final FileFormatDataSourceStats stats;
+    private final ListenableFuture<?> future;
 
     public HdfsOrcDataSource(
             OrcDataSourceId id,
+            ListenableFuture<?> future,
             long size,
             DataSize maxMergeDistance,
             DataSize maxReadSize,
@@ -47,6 +50,7 @@ public class HdfsOrcDataSource
         super(id, size, maxMergeDistance, maxReadSize, streamBufferSize, lazyReadSmallRanges);
         this.inputStream = requireNonNull(inputStream, "inputStream is null");
         this.stats = requireNonNull(stats, "stats is null");
+        this.future = future;
     }
 
     @Override
@@ -79,4 +83,7 @@ public class HdfsOrcDataSource
             throw new PrestoException(HIVE_UNKNOWN_ERROR, message, e);
         }
     }
+
+    @Override
+
 }

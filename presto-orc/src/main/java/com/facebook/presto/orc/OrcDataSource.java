@@ -16,6 +16,7 @@ package com.facebook.presto.orc;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 public interface OrcDataSource
         extends Closeable
@@ -41,5 +42,10 @@ public interface OrcDataSource
     default void close()
             throws IOException
     {
+    }
+
+    default CompletableFuture<?> isBlocked()
+    {
+        return CompletableFuture.completedFuture(null);
     }
 }
