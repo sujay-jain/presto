@@ -192,6 +192,7 @@ public class OrcFileWriterFactory
                     try {
                         return new HdfsOrcDataSource(
                                 new OrcDataSourceId(path.toString()),
+                                path,
                                 fileSystem.getFileStatus(path).getLen(),
                                 getOrcMaxMergeDistance(session),
                                 getOrcMaxBufferSize(session),

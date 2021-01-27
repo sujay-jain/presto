@@ -231,6 +231,7 @@ public class OrcBatchPageSourceFactory
 
             orcDataSource = new HdfsOrcDataSource(
                     new OrcDataSourceId(path.toString()),
+                    path,
                     fileSize,
                     orcReaderOptions.getMaxMergeDistance(),
                     maxBufferSize,

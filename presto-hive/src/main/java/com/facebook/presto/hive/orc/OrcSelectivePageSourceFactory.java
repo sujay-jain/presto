@@ -307,7 +307,7 @@ public class OrcSelectivePageSourceFactory
             ListenableFuture<?> future = Futures.immediateFuture(null);//throttlingManager.getIsThrottledFuture(path);
             orcDataSource = new HdfsOrcDataSource(
                     new OrcDataSourceId(path.toString()),
-                    future,
+                    path,
                     fileSize,
                     maxMergeDistance,
                     maxBufferSize,

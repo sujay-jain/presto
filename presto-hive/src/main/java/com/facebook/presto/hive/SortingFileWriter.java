@@ -219,6 +219,7 @@ public class SortingFileWriter
                 Path file = tempFile.getPath();
                 OrcDataSource dataSource = new HdfsOrcDataSource(
                         new OrcDataSourceId(file.toString()),
+                        file,
                         fileSystem.getFileStatus(file).getLen(),
                         new DataSize(1, MEGABYTE),
                         new DataSize(8, MEGABYTE),

@@ -13,10 +13,12 @@
  */
 package com.facebook.presto.orc;
 
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 public interface OrcDataSource
         extends Closeable
@@ -44,8 +46,8 @@ public interface OrcDataSource
     {
     }
 
-    default CompletableFuture<?> isBlocked()
+    default ListenableFuture<?> isBlocked()
     {
-        return CompletableFuture.completedFuture(null);
+        return Futures.immediateFuture(null);
     }
 }
