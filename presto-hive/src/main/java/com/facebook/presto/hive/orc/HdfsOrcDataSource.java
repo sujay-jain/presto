@@ -17,8 +17,11 @@ import com.facebook.presto.hive.FileFormatDataSourceStats;
 import com.facebook.presto.orc.AbstractOrcDataSource;
 import com.facebook.presto.orc.OrcDataSourceId;
 import com.facebook.presto.spi.PrestoException;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import io.airlift.units.DataSize;
 import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.Path;
 
 import java.io.IOException;
 
@@ -34,8 +37,10 @@ public class HdfsOrcDataSource
     private final FSDataInputStream inputStream;
     private final FileFormatDataSourceStats stats;
 
+    //include the path and throttling manager in here and make the decision
     public HdfsOrcDataSource(
             OrcDataSourceId id,
+            Path path,
             long size,
             DataSize maxMergeDistance,
             DataSize maxReadSize,
@@ -79,4 +84,12 @@ public class HdfsOrcDataSource
             throw new PrestoException(HIVE_UNKNOWN_ERROR, message, e);
         }
     }
+
+    @Override
+    public ListenableFuture<?> isBlocked()
+    {
+        return Futures.immediateFuture(null);
+        //throttlemanager.classify(path)
+    }
+
 }

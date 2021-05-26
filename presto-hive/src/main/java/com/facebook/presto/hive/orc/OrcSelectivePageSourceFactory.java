@@ -69,6 +69,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import io.airlift.units.DataSize;
 import org.apache.hadoop.conf.Configuration;
@@ -301,8 +303,11 @@ public class OrcSelectivePageSourceFactory
         OrcDataSource orcDataSource;
         try {
             FSDataInputStream inputStream = hdfsEnvironment.getFileSystem(session.getUser(), path, configuration).openFile(path, hiveFileContext);
+            //19:00 Upon receiving response from WS check if it's throttled and check with Throttlemanager
+            ListenableFuture<?> future = Futures.immediateFuture(null);//throttlingManager.getIsThrottledFuture(path);
             orcDataSource = new HdfsOrcDataSource(
                     new OrcDataSourceId(path.toString()),
+                    path,
                     fileSize,
                     maxMergeDistance,
                     maxBufferSize,
